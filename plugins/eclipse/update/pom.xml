@@ -28,6 +28,12 @@
             <artifactId>fr.inria.atlanmod.neoemf.data.blueprints.core.feature</artifactId>
             <version>${project.version}</version>
         </dependency>
+        
+        <dependency>
+        	<groupId>fr.inria.atlanmod.neoemf.plugins</groupId>
+        	<artifactId>fr.inria.atlanmod.neoemf.data.map.core.feature</artifactId>
+        	<version>${project.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>fr.inria.atlanmod.neoemf.plugins</groupId>

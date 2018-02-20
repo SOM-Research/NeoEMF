@@ -29,6 +29,12 @@
             <artifactId>neoemf-data-blueprints-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        
+        <dependency>
+        	<groupId>fr.inria.atlanmod.neoemf</groupId>
+        	<artifactId>neoemf-data-map-core</artifactId>
+        	<version>${project.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>fr.inria.atlanmod.neoemf</groupId>

@@ -11,7 +11,7 @@
 
     <artifactId>neoemf-data-map-core</artifactId>
 
-    <packaging>jar</packaging>
+    <packaging>bundle</packaging>
 
     <name>NeoEMF Data Map Core</name>
     <description>Common classes for Map implementations.</description>
@@ -60,5 +60,31 @@
             <artifactId>mockito-all</artifactId>
         </dependency>
     </dependencies>
+    
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.felix</groupId>
+                <artifactId>maven-bundle-plugin</artifactId>
+                <configuration>
+                    <instructions>
+                        <Bundle-SymbolicName>
+                            ${project.groupId}.data.map.core
+                        </Bundle-SymbolicName>
+                        <DynamicImport-Package>*</DynamicImport-Package>
+                        <Export-Package>
+                            fr.inria.atlanmod.neoemf.data.map.core.*
+                        </Export-Package>
+                        <_exportcontents>
+                        </_exportcontents>
+                        <Require-Bundle>
+                            ${project.groupId}.core
+                        </Require-Bundle>
+                        <Bundle-ActivationPolicy>lazy</Bundle-ActivationPolicy>
+                    </instructions>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>

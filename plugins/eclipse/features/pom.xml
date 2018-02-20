@@ -29,6 +29,7 @@
         <module>fr.inria.atlanmod.neoemf.data.blueprints.neo4j.wrapper.feature</module>
 
         <!-- Map-based implementation -->
+        <module>fr.inria.atlanmod.neoemf.data.map.core.feature</module>
         <module>fr.inria.atlanmod.neoemf.data.mapdb.feature</module>
         <module>fr.inria.atlanmod.neoemf.data.berkeleydb.feature</module>
 

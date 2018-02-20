@@ -137,6 +137,7 @@
                             com.sleepycat,
                         </_exportcontents>
                         <Require-Bundle>
+                        	${project.groupId}.data.map.core,
                             ${project.groupId}.core
                         </Require-Bundle>
                         <Bundle-Activator>
