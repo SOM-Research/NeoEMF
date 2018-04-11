@@ -232,7 +232,7 @@ public class DefaultPersistentEObject extends MinimalEStoreEObjectImpl implement
         }
         return sb.toString();
     }
-    
+
     @Override
     protected void eBasicSetContainer(InternalEObject eContainer) {
         this.eContainer = eContainer;
@@ -347,13 +347,9 @@ public class DefaultPersistentEObject extends MinimalEStoreEObjectImpl implement
     @Override
     public InternalEObject eInternalContainer() {
         /*
-         * Don't load the container from the store here: it creates an important
-         * overhead and performance loss. 
-         * [Update 21-02-2017] don't call super.eInternalContainer() either: it 
-         * will delegate to the store.
+         * This has been removed in our fork, and I can't find the  corresponding commit
          */
-        return eContainer;
-//        return isNull(eContainer) ? super.eInternalContainer() : eContainer;
+        return isNull(eContainer) ? super.eInternalContainer() : eContainer;
     }
 
     @Override
@@ -480,7 +476,7 @@ public class DefaultPersistentEObject extends MinimalEStoreEObjectImpl implement
         public boolean contains(Object object) {
             return delegateContains(object);
         }
-        
+
         /**
          * {@inheritDoc}
          * <p>
@@ -491,7 +487,7 @@ public class DefaultPersistentEObject extends MinimalEStoreEObjectImpl implement
         public Object[] toArray() {
             return eStore().toArray(owner, getEStructuralFeature());
         };
-        
+
         /**
          * {@inheritDoc}
          * <p>
