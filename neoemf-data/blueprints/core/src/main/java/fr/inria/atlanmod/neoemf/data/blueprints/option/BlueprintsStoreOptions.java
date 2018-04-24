@@ -13,6 +13,7 @@ package fr.inria.atlanmod.neoemf.data.blueprints.option;
 
 import fr.inria.atlanmod.neoemf.data.blueprints.store.DirectWriteBlueprintsCacheManyStore;
 import fr.inria.atlanmod.neoemf.data.blueprints.store.DirectWriteBlueprintsStore;
+import fr.inria.atlanmod.neoemf.data.blueprints.store.DirectWriteBlueprintsStoreLongListSupport;
 import fr.inria.atlanmod.neoemf.data.store.AutocommitStoreDecorator;
 import fr.inria.atlanmod.neoemf.data.store.DirectWriteStore;
 import fr.inria.atlanmod.neoemf.option.PersistentStoreOptions;
@@ -25,6 +26,7 @@ import org.eclipse.emf.ecore.EReference;
  *
  * @see AutocommitStoreDecorator
  * @see DirectWriteBlueprintsStore
+ * @see DirectWriteBlueprintsStoreLongListSupport
  * @see DirectWriteBlueprintsCacheManyStore
  */
 public enum BlueprintsStoreOptions implements PersistentStoreOptions {
@@ -38,10 +40,24 @@ public enum BlueprintsStoreOptions implements PersistentStoreOptions {
 
     /**
      * Translates model-level operations to Blueprints calls <i>(default {@link DirectWriteStore})</i>.
+     * <p>
+     * <b>Note:</b> this option is not compatible with {@link #DIRECT_WRITE_LONG_LIST_SUPPORT}, and cannot be uesd to
+     * load a model stored with the {@link #DIRECT_WRITE_LONG_LIST_SUPPORT} option.
      *
      * @see DirectWriteBlueprintsStore
      */
     DIRECT_WRITE,
+
+    /**
+     * Translates model-level operations to Blueprints calls, and provides a specific data-model that efficiently
+     * stores and accesses long reference lists.
+     * <p>
+     * <b>Note:</b> this option is not compatible with {@link #DIRECT_WRITE}, and cannot be used to load a model
+     * stored with the {@link #DIRECT_WRITE} option.
+     *
+     * @see DirectWriteBlueprintsStoreLongListSupport
+     */
+    DIRECT_WRITE_LONG_LIST_SUPPORT,
 
     /**
      * Translates model-level operations to Blueprints calls, and uses an internal cache to store elements that are

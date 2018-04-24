@@ -26,6 +26,7 @@ import fr.inria.atlanmod.neoemf.data.blueprints.option.BlueprintsResourceOptions
 import fr.inria.atlanmod.neoemf.data.blueprints.option.BlueprintsStoreOptions;
 import fr.inria.atlanmod.neoemf.data.blueprints.store.DirectWriteBlueprintsCacheManyStore;
 import fr.inria.atlanmod.neoemf.data.blueprints.store.DirectWriteBlueprintsStore;
+import fr.inria.atlanmod.neoemf.data.blueprints.store.DirectWriteBlueprintsStoreLongListSupport;
 import fr.inria.atlanmod.neoemf.data.blueprints.tg.configuration.InternalBlueprintsTgConfiguration;
 import fr.inria.atlanmod.neoemf.data.store.AutocommitStoreDecorator;
 import fr.inria.atlanmod.neoemf.data.store.PersistentStore;
@@ -121,6 +122,10 @@ public class BlueprintsPersistenceBackendFactory extends AbstractPersistenceBack
         }
         else if (storeOptions.contains(BlueprintsStoreOptions.CACHE_MANY)) {
             store = new DirectWriteBlueprintsCacheManyStore(resource, (BlueprintsPersistenceBackend) backend);
+        }
+        else if(storeOptions.contains(BlueprintsStoreOptions.DIRECT_WRITE_LONG_LIST_SUPPORT)) {
+            NeoLogger.info("Creating DirectWriteLongListSupport Store");
+            store = new DirectWriteBlueprintsStoreLongListSupport(resource, (BlueprintsPersistenceBackend) backend);
         }
         else {
             throw new InvalidDataStoreException("No valid base EStore found in the options");

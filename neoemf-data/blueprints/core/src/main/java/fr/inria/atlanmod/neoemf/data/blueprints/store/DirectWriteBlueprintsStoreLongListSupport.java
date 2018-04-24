@@ -11,12 +11,10 @@ import fr.inria.atlanmod.neoemf.data.blueprints.BlueprintsPersistenceBackend;
 import fr.inria.atlanmod.neoemf.data.store.PersistentStore;
 import fr.inria.atlanmod.neoemf.util.logging.NeoLogger;
 import org.apache.commons.lang.ArrayUtils;
-import org.eclipse.emf.ecore.EAttribute;
-import org.eclipse.emf.ecore.EReference;
-import org.eclipse.emf.ecore.EStructuralFeature;
-import org.eclipse.emf.ecore.InternalEObject;
+import org.eclipse.emf.ecore.*;
 import org.eclipse.emf.ecore.resource.Resource;
 
+import javax.annotation.Nullable;
 import java.util.Objects;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -181,6 +179,23 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
             Integer size = vertex.getProperty(feature.getName() + SEPARATOR + SIZE_LITERAL);
             return isNull(size) ? 0 : size;
         }
+    }
+
+    @Override
+    protected InternalEObject reifyVertex(Vertex vertex, @Nullable EClass eClass) {
+        PersistentEObject internalEObject = backend.reifyVertex(vertex, eClass);
+        if (internalEObject.resource() != resource()) {
+            if (Iterables.isEmpty(vertex.getEdges(Direction.OUT, CONTAINER))) {
+                if (!Iterables.isEmpty(vertex.getVertices(Direction.IN, VertexList.VALUE + "_" + CONTENTS))) {
+                    internalEObject.resource(resource());
+                }
+                // else : not part of the resource
+            }
+            else {
+                internalEObject.resource(resource());
+            }
+        }
+        return internalEObject;
     }
 
     private VertexList listFor(Vertex from, EReference reference) {
