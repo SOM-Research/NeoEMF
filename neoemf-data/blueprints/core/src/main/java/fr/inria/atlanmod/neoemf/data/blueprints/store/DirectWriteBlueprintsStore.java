@@ -636,7 +636,7 @@ public class DirectWriteBlueprintsStore extends AbstractDirectWriteStore<Bluepri
      * @see DirectWriteBlueprintsStore#CONTAINER
      * @see DirectWriteBlueprintsStore#CONTAINING_FEATURE
      */
-    private void updateContainment(EReference reference, Vertex parentVertex, Vertex childVertex) {
+    protected void updateContainment(EReference reference, Vertex parentVertex, Vertex childVertex) {
         for (Edge edge : childVertex.getEdges(Direction.OUT, CONTAINER)) {
             edge.remove();
         }
