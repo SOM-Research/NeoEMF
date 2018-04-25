@@ -8,6 +8,7 @@ import fr.inria.atlanmod.neoemf.core.Id;
 import fr.inria.atlanmod.neoemf.core.PersistentEObject;
 import fr.inria.atlanmod.neoemf.core.StringId;
 import fr.inria.atlanmod.neoemf.data.blueprints.BlueprintsPersistenceBackend;
+import fr.inria.atlanmod.neoemf.data.store.AbstractPersistentStoreDecorator;
 import fr.inria.atlanmod.neoemf.data.store.PersistentStore;
 import fr.inria.atlanmod.neoemf.util.logging.NeoLogger;
 import org.apache.commons.lang.ArrayUtils;
@@ -23,8 +24,35 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 
+/**
+ * A {@link fr.inria.atlanmod.neoemf.data.store.DirectWriteStore} that translates model-level operation to Blueprints
+ * calls, with additional support for long feature lists.
+ * <p>
+ * This class relies on an in-database linked list to represent feature collections, speeding-up addition and
+ * deletion of elements. When possible, lookup methods such as {@code contains} and {@code indexOf} are optimized to
+ * avoid full iteration of the underlying list.
+ * <p>
+ * This class implements the {@link PersistentStore} interface that defines a set of operations to implement in order to
+ * allow EMF persistence delegation. If this store is used, every method call and property access on {@link
+ * PersistentEObject} is forwarded to this class, that takes care of the database serialization and deserialization
+ * using its embedded {@link BlueprintsPersistenceBackend}.
+ * <p>
+ * This store can be used as a base store that can be complemented by plugging decorator stores on top of it (see {@link
+ * AbstractPersistentStoreDecorator} subclasses) to provide additional features such as caching or logging.
+ *
+ * @see PersistentEObject
+ * @see BlueprintsPersistenceBackend
+ * @see AbstractPersistentStoreDecorator
+ */
 public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBlueprintsStore {
 
+    /**
+     * Constructs a new {@code DirectWriteBlueprintsStoreLongListSupport} between the given {@code resource} and the
+     * {@code backend}.
+     *
+     * @param resource the resource to persist and access
+     * @param backend  the persistence back-end to store the model
+     */
     public DirectWriteBlueprintsStoreLongListSupport(Resource.Internal resource, BlueprintsPersistenceBackend backend) {
         super(resource, backend);
     }
@@ -35,7 +63,7 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
         Vertex vertex = backend.getVertex(object.id());
         VertexList vList = listFor(vertex, reference);
         Vertex referencedVertex = vList.get(index);
-        if(nonNull(referencedVertex)) {
+        if (nonNull(referencedVertex)) {
             referencedObject = reifyVertex(referencedVertex);
         }
         return referencedObject;
@@ -45,7 +73,7 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
     protected Object setReference(PersistentEObject object, EReference reference, int index, PersistentEObject value) {
         Vertex vertex = backend.getOrCreateVertex(object);
         Vertex newReferencedVertex = backend.getOrCreateVertex(value);
-        if(reference.isContainment()) {
+        if (reference.isContainment()) {
             updateContainment(reference, vertex, newReferencedVertex);
         }
 
@@ -53,7 +81,7 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
         Vertex oldVertex = vList.set(newReferencedVertex, index);
 
         Object old = null;
-        if(nonNull(oldVertex)) {
+        if (nonNull(oldVertex)) {
             old = reifyVertex(oldVertex);
         }
         return old;
@@ -91,13 +119,13 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
 
     @Override
     protected void addReference(PersistentEObject object, EReference reference, int index, PersistentEObject value) {
-        if(index == PersistentStore.NO_INDEX) {
+        if (index == PersistentStore.NO_INDEX) {
             index = size(object, reference);
         }
         Vertex vertex = backend.getOrCreateVertex(object);
         Vertex referencedVertex = backend.getOrCreateVertex(value);
 
-        if(reference.isContainment()) {
+        if (reference.isContainment()) {
             updateContainment(reference, vertex, referencedVertex);
         }
 
@@ -112,7 +140,7 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
         Vertex oldVertex = vList.remove(index);
         checkNotNull(oldVertex);
         InternalEObject oldObject = reifyVertex(oldVertex);
-        if(reference.isContainment()) {
+        if (reference.isContainment()) {
             oldObject.eBasicSetContainer(null, -1, null);
             ((PersistentEObject) oldObject).resource(null);
         }
@@ -124,7 +152,8 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
         // TODO check if this is correct regarding VertexList.clear() implementation
         Vertex vertex = backend.getOrCreateVertex(object);
         VertexList vList = listFor(vertex, reference);
-        vList.clear();;
+        vList.clear();
+        ;
     }
 
     @Override
@@ -139,7 +168,7 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
                 .getSimpleName());
         PersistentEObject object = PersistentEObject.from(internalObject);
         Vertex vertex = backend.getVertex(object.id());
-        if(feature instanceof EReference) {
+        if (feature instanceof EReference) {
             VertexList vList = listFor(vertex, (EReference) feature);
             return vList.toArray(array);
         } else {
@@ -161,7 +190,7 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
             } else {
                 Object property = vertex.getProperty(propertyName);
                 if (isNull(array)) {
-                    return (T[]) new Object[] { parseProperty((EAttribute) feature, property) };
+                    return (T[]) new Object[]{parseProperty((EAttribute) feature, property)};
                 } else {
                     array[0] = (T) parseProperty((EAttribute) feature, property);
                     return array;
@@ -172,7 +201,7 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
 
     @Override
     protected Integer getSize(Vertex vertex, EStructuralFeature feature) {
-        if(feature instanceof EReference) {
+        if (feature instanceof EReference) {
             VertexList vList = listFor(vertex, (EReference) feature);
             return vList.size();
         } else {
@@ -190,24 +219,36 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
                     internalEObject.resource(resource());
                 }
                 // else : not part of the resource
-            }
-            else {
+            } else {
                 internalEObject.resource(resource());
             }
         }
         return internalEObject;
     }
 
+    /**
+     * Creates a {@link VertexList} representing the provided {@code reference} associated to the given element
+     * represented by {@code from}.
+     * <p>
+     * This method creates an instance of the linked list wrapper that allows to easily manipulate collections of
+     * elements stored in the provided {@code reference}. Collections should be manipulated using this wrapper to
+     * ensure that the underlying list stays consistent.
+     *
+     * @param from      the {@link Vertex} representing the element to get the list of
+     * @param reference the {@link EReference} representing the feature content to access
+     * @return the created {@link VertexList}
+     * @see VertexList
+     */
     private VertexList listFor(Vertex from, EReference reference) {
         VertexList list = null;
         Vertex listBase = Iterables.getOnlyElement(from.getVertices(Direction.OUT, reference.getName()), null);
-        if(isNull(listBase)) {
+        if (isNull(listBase)) {
             listBase = backend.addVertex(StringId.generate());
             from.addEdge(reference.getName(), listBase);
             list = new VertexList(listBase, backend, reference);
         } else {
             Vertex head = Iterables.getOnlyElement(listBase.getVertices(Direction.OUT, VertexList.HEAD), null);
-            if(nonNull(head)) {
+            if (nonNull(head)) {
                 Vertex tail = Iterables.getOnlyElement(listBase.getVertices(Direction.OUT, VertexList.TAIL), null);
                 list = new VertexList(listBase, head, tail, backend, reference);
             } else {
@@ -222,24 +263,76 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
      */
     private static class VertexList {
 
+        /**
+         * The {@link Edge} label used to represent the head of the list.
+         */
         protected static final String HEAD = "head";
 
+        /**
+         * The {@link Edge} label used to represent the tail of the list.
+         */
         protected static final String TAIL = "tail";
 
+        /**
+         * The {@link Edge} label used to represent the next element in the list.
+         * <p>
+         * Note that the list does not provide a {@code previous} edge label, because Blueprints edges can be
+         * navigated forward and backward.
+         */
         protected static final String NEXT = "next";
 
+        /**
+         * The {@link Edge} label used to link list vertices to their concrete values.
+         */
         protected static final String VALUE = "value";
 
+        /**
+         * The {@link BlueprintsPersistenceBackend} used to create new list vertices.
+         */
         private BlueprintsPersistenceBackend backend;
 
+        /**
+         * The base {@link Vertex} of the list.
+         * <p>
+         * This {@link Vertex} is used to limit the number of outgoing edges of a given element {@link Vertex}: an
+         * element can contain n {@code base} vertices, where n is the number of possible features of the element.
+         * This avoid costly edge lookups when iterating features.
+         */
         private Vertex base;
 
+        /**
+         * The head {@link Vertex} of the list.
+         *
+         * @see #tail
+         */
         private Vertex head;
 
+        /**
+         * The tail {@link Vertex} of the list.
+         *
+         * @see #head
+         */
         private Vertex tail;
 
+        /**
+         * The edge label used to represent the feature content.
+         */
         private String refLabel;
 
+        /**
+         * Constructs a new {@link VertexList} with the provided {@code base}, {@code head}, {@code tail}, managed by
+         * the provided {@code backend}, and representing the given {@code reference}.
+         * <p>
+         * This constructor is used to create {@link VertexList} instances representing an existing collection. To
+         * create an empty {@link VertexList} see {@link #VertexList(Vertex, BlueprintsPersistenceBackend, EReference)}.
+         *
+         * @param base      the base {@link Vertex} of the list
+         * @param head      the head {@link Vertex} of the list
+         * @param tail      the tail {@link Vertex} of the list
+         * @param backend   the {@link BlueprintsPersistenceBackend} used to create new list vertices
+         * @param reference the element's feature to construct the list for
+         * @see #VertexList(Vertex, BlueprintsPersistenceBackend, EReference)
+         */
         private VertexList(Vertex base, Vertex head, Vertex tail, BlueprintsPersistenceBackend backend, EReference
                 reference) {
             this.base = base;
@@ -249,6 +342,19 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
             this.refLabel = VALUE + "_" + reference.getName();
         }
 
+        /**
+         * Constructs an empty {@link VertexList} with the provided {@code base}, managed by the provided {@code
+         * backend}, and representing the given {@code reference}.
+         * <p>
+         * This constructor sets the {@link #head}, and {@link #tail} vertices to {@code null}. To create a
+         * {@link VertexList} from an existing list see
+         * {@link #VertexList(Vertex, BlueprintsPersistenceBackend, EReference)}.
+         *
+         * @param base      the base {@link Vertex} of the list
+         * @param backend   the {@link BlueprintsPersistenceBackend} used to create new list vertices
+         * @param reference the element's feature to construct the list for
+         * @see #VertexList(Vertex, BlueprintsPersistenceBackend, EReference)
+         */
         private VertexList(Vertex base, BlueprintsPersistenceBackend backend, EReference reference) {
             this(base, null, null, backend, reference);
             setSize(0);
@@ -277,6 +383,17 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
             return getValue(node);
         }
 
+        /**
+         * Adds the element represented by {@code v} at the given {@code index} to the list.
+         * <p>
+         * This method creates a new {@link Vertex} in the list, puts it at the provided {@code index}, and link it
+         * to the provided {@code v}.
+         *
+         * @param v     the {@link Vertex} representing the element to add
+         * @param index the position of the element to add
+         * @see #setHead(Vertex)
+         * @see #setTail(Vertex)
+         */
         public void add(Vertex v, int index) {
             /*
              * Create the node in the list associated to the provided vertex.
@@ -305,11 +422,22 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
             setSize(size + 1);
         }
 
-        // returns the value
+        /**
+         * Sets the element represented by {@code v} at the given {@code index} to the list.
+         * <p>
+         * This method does not change the list itself, and reuses existing vertices to set the new value. Note that
+         * the returned {@link Vertex} represent the removed element, not the list's updated vertex.
+         *
+         * @param v     the {@link Vertex} representing the element to set
+         * @param index the position of the element to set
+         * @return a {@link Vertex} representing the removed element
+         * @see #getNodeAtIndex(int, int)
+         * @see #getValue(Vertex)
+         */
         public Vertex set(Vertex v, int index) {
             int size = size();
             Vertex oldNode = null;
-            if(index == InternalEObject.EStore.NO_INDEX) {
+            if (index == InternalEObject.EStore.NO_INDEX) {
                 /*
                  * The list represents a single-valued reference.
                  */
@@ -334,6 +462,18 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
             return oldNodeValue;
         }
 
+        /**
+         * Removes the element at the given {@code index} from the list.
+         * <p>
+         * This method removes the list's {@link Vertex} at the given {@code index}, and reset its incoming and
+         * outgoing {@link Edge}s to ensure list consistency.
+         *
+         * @param index the position of the element to remove
+         * @return a {@link Vertex} representing the removed element
+         * @see #setHead(Vertex)
+         * @see #setTail(Vertex)
+         * @see #getValue(Vertex)
+         */
         public Vertex remove(int index) {
             int size = size();
             // TODO check if remove can be called on single-valued references.
@@ -341,12 +481,12 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
             Vertex oldNodeValue = getValue(oldNode);
             Vertex prevNode = getPrev(oldNode);
             Vertex nextNode = getNext(oldNode);
-            if(isNull(prevNode)) {
+            if (isNull(prevNode)) {
                 /*
                  * We are removing the head.
                  */
                 setHead(nextNode);
-            } else if(isNull(nextNode)) {
+            } else if (isNull(nextNode)) {
                 /*
                  * We are removing the tail.
                  */
@@ -359,77 +499,128 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
              */
             oldNode.getEdges(Direction.BOTH, NEXT, refLabel, HEAD, TAIL).forEach(e -> e.remove());
             oldNode.remove();
-            setSize(size -1);
+            setSize(size - 1);
             return oldNodeValue;
         }
 
+        /**
+         * Returns the position of the element {@link Vertex} with the provided {@code id}.
+         * <p>
+         * This method iterates the list from the {@code head}, and returns the position of the first element
+         * matching the provided {@code id}. To retrieve the last element with the provided {@code id}, see
+         * {@link #lastIndexOf(Id)}.
+         *
+         * @param id the {@link Id} of the element {@link Vertex} to retrieve the position of
+         * @return the position of the first element matching the provided {@code id}
+         * @see #lastIndexOf(Id)
+         * @see #getNext(Vertex)
+         * @see #getValue(Vertex)
+         */
         public int indexOf(Id id) {
             int index = 0;
             // TODO check if we can improve here
             Vertex node = head;
-            while(nonNull(node)) {
-                if(Objects.equals(getValue(node).getId(), id)) {
+            while (nonNull(node)) {
+                if (Objects.equals(getValue(node).getId(), id)) {
                     return index;
                 }
                 index++;
+                node = getNext(node);
             }
             return ArrayUtils.INDEX_NOT_FOUND;
         }
 
+        /**
+         * Returns the position of the last element {@link Vertex} with the provided {@code id}.
+         * <p>
+         * This method iterates the list from the {@code tail}, and returns the position of the last element matching
+         * the provided {@code id}. To retrieve the first element with the provided {@code if}, see
+         * {@link #indexOf(Id)}.
+         *
+         * @param id the {@link Id} of the element {@link Vertex} to retrieve the position of
+         * @return the position of the last element matching the provided {@code id}
+         * @see #indexOf(Id)
+         * @see #getPrev(Vertex)
+         * @see #getValue(Vertex)
+         */
         public int lastIndexOf(Id id) {
             int size = size();
             int index = size - 1;
             Vertex node = tail;
-            while(nonNull(tail)) {
-                if(Objects.equals(getValue(node).getId(), id)) {
+            while (nonNull(tail)) {
+                if (Objects.equals(getValue(node).getId(), id)) {
                     return index;
                 }
                 index--;
+                node = getPrev(node);
             }
             return ArrayUtils.INDEX_NOT_FOUND;
         }
 
+        /**
+         * Returns {@code true} if the list contains the provided element's {@code vertex}, {@code false} otherwise.
+         * <p>
+         * This implementation navigates backward the incoming {@link Edge}s of the provided {@code vertex} and
+         * searches for the ones labeled {@link #refLabel}, and navigates until the tail of the list to compare it
+         * with the {@link #tail} {@link Vertex}. This approach allows to fastly returns {@code false} when an
+         * element is not contained, speeding-up the computation of element addition to EMF unique collections.
+         *
+         * @param vertex the element {@link Vertex} to check
+         * @return {@code true} if the list contains the provided element's {@code vertex}, {@code false} otherwise
+         * @see #getNext(Vertex)
+         */
         public boolean contains(Vertex vertex) {
             /*
              * Retrieve the node in the list referencing the element
              */
             Iterable<Vertex> refNodes = vertex.getVertices(Direction.IN, refLabel);
-            if(Iterables.isEmpty(refNodes)) {
+            if (Iterables.isEmpty(refNodes)) {
                 /*
                  * The element is not referenced by any refLabel edge, it cannot be contained in the list.
                  */
                 return false;
-            }
-            else {
-                for(Vertex refNode : refNodes) {
+            } else {
+                for (Vertex refNode : refNodes) {
                     /**
                      * Iterates all the lists and find if its tail is equal to the one representing this list.
                      */
                     Vertex node = refNode;
-                    while(nonNull(node)) {
-                        if(node.equals(tail)) {
+                    while (nonNull(node)) {
+                        if (node.equals(tail)) {
                             return true;
                         }
                     }
                     node = getNext(node);
                 }
             }
-            // Should never happen?
+            /*
+             * The element is in a list representing the correct reference, but not this one (associated to another
+             * element vertex).
+             */
             return false;
         }
 
+        /**
+         * Returns an array representing the list contents.
+         * <p>
+         * This method fills the provided {@code array} if it is not {@code null}, or returns a new one otherwise.
+         *
+         * @param array the array to fill with the list contents
+         * @param <T>   the type of the array's elements
+         * @return an array representing the list contents
+         */
         public <T> T[] toArray(T[] array) {
             int size = size();
             Object[] result = new Object[size];
             int index = 0;
             Vertex node = head;
-            while(nonNull(node)) {
+            while (nonNull(node)) {
                 // Reify here to avoid multiple iterations on the array
                 // Not clean, we should not manipulate EObjects in this class
                 result[index] = backend.reifyVertex(getValue(node));
                 index++;
             }
-            if(isNull(array)) {
+            if (isNull(array)) {
                 return (T[]) result;
             } else {
                 System.arraycopy(result, 0, array, 0, result.length);
@@ -437,6 +628,16 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
             }
         }
 
+        /**
+         * Clears the list contents.
+         * <p>
+         * This method removes the {@link #head}, {@link #tail}, and {@link #base} vertices, as well as all the
+         * intermediate vertices used to represent list elements.
+         * <p>
+         * <b>Note:</b> the current implementation only removes {@link #head}, {@link #tail}, and {@link #base}
+         * edges, and not the intermediate list vertices
+         * (<a href="https://github.com/SOM-Research/NeoEMF/issues/1">GitHub Issue</a>).
+         */
         public void clear() {
             // Does not remove the nodes in the list !
             base.getEdges(Direction.BOTH, HEAD, TAIL).forEach(e -> e.remove());
@@ -445,6 +646,9 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
 
         /**
          * Returns the size of the internal linked list.
+         * <p>
+         * The size of the list is stored in a dedicated {@link #base} property to avoid costly iteration over the
+         * list elements.
          *
          * @return the size of the internal linked list
          */
