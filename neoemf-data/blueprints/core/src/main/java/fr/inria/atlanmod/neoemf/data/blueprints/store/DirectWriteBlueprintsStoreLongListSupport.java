@@ -226,6 +226,8 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
         return internalEObject;
     }
 
+    private VertexList previousVertexList = null;
+
     /**
      * Creates a {@link VertexList} representing the provided {@code reference} associated to the given element
      * represented by {@code from}.
@@ -240,21 +242,27 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
      * @see VertexList
      */
     private VertexList listFor(Vertex from, EReference reference) {
+        if(nonNull(previousVertexList)) {
+            if(previousVertexList.getFrom().equals(from) && previousVertexList.getEReference().equals(reference)) {
+                return previousVertexList;
+            }
+        }
         VertexList list = null;
         Vertex listBase = Iterables.getOnlyElement(from.getVertices(Direction.OUT, reference.getName()), null);
         if (isNull(listBase)) {
             listBase = backend.addVertex(StringId.generate());
             from.addEdge(reference.getName(), listBase);
-            list = new VertexList(listBase, backend, reference);
+            list = new VertexList(from, listBase, backend, reference);
         } else {
             Vertex head = Iterables.getOnlyElement(listBase.getVertices(Direction.OUT, VertexList.HEAD), null);
             if (nonNull(head)) {
                 Vertex tail = Iterables.getOnlyElement(listBase.getVertices(Direction.OUT, VertexList.TAIL), null);
-                list = new VertexList(listBase, head, tail, backend, reference);
+                list = new VertexList(from, listBase, head, tail, backend, reference);
             } else {
-                list = new VertexList(listBase, backend, reference);
+                list = new VertexList(from, listBase, backend, reference);
             }
         }
+        previousVertexList = list;
         return list;
     }
 
@@ -292,6 +300,14 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
         private BlueprintsPersistenceBackend backend;
 
         /**
+         * The element {@link Vertex} to retrieve the list from.
+         * <p>
+         * The element {@link Vertex} stores element-related information such as attributes and references, and is
+         * linked to the {@link #base} {@link Vertex} representing this list.
+         */
+        private Vertex from;
+
+        /**
          * The base {@link Vertex} of the list.
          * <p>
          * This {@link Vertex} is used to limit the number of outgoing edges of a given element {@link Vertex}: an
@@ -320,25 +336,42 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
         private String refLabel;
 
         /**
+         * The {@link EReference} represented by this list.
+         */
+        private EReference eReference;
+
+        /**
+         * The last indexed {@link Vertex} retrieved by this list.
+         * <p>
+         * This value allows to speed-up list traversal for continuous iterations (i.e. from n to m), by avoiding
+         * costly iterations of the list.
+         */
+        private IndexedVertex lastIndexedVertex = null;
+
+        /**
          * Constructs a new {@link VertexList} with the provided {@code base}, {@code head}, {@code tail}, managed by
          * the provided {@code backend}, and representing the given {@code reference}.
          * <p>
          * This constructor is used to create {@link VertexList} instances representing an existing collection. To
-         * create an empty {@link VertexList} see {@link #VertexList(Vertex, BlueprintsPersistenceBackend, EReference)}.
+         * create an empty {@link VertexList} see
+         * {@link #VertexList(Vertex, Vertex, BlueprintsPersistenceBackend, EReference)}.
          *
+         * @param from      the element {@link Vertex}
          * @param base      the base {@link Vertex} of the list
          * @param head      the head {@link Vertex} of the list
          * @param tail      the tail {@link Vertex} of the list
          * @param backend   the {@link BlueprintsPersistenceBackend} used to create new list vertices
          * @param reference the element's feature to construct the list for
-         * @see #VertexList(Vertex, BlueprintsPersistenceBackend, EReference)
+         * @see #VertexList(Vertex, Vertex, BlueprintsPersistenceBackend, EReference)
          */
-        private VertexList(Vertex base, Vertex head, Vertex tail, BlueprintsPersistenceBackend backend, EReference
-                reference) {
+        private VertexList(Vertex from, Vertex base, Vertex head, Vertex tail, BlueprintsPersistenceBackend backend,
+                           EReference reference) {
+            this.from = from;
             this.base = base;
             this.head = head;
             this.tail = tail;
             this.backend = backend;
+            this.eReference = reference;
             this.refLabel = VALUE + "_" + reference.getName();
         }
 
@@ -348,16 +381,35 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
          * <p>
          * This constructor sets the {@link #head}, and {@link #tail} vertices to {@code null}. To create a
          * {@link VertexList} from an existing list see
-         * {@link #VertexList(Vertex, BlueprintsPersistenceBackend, EReference)}.
+         * {@link #VertexList(Vertex, Vertex, Vertex, Vertex, BlueprintsPersistenceBackend, EReference)}.
          *
+         * @param from      the element {@link Vertex}
          * @param base      the base {@link Vertex} of the list
          * @param backend   the {@link BlueprintsPersistenceBackend} used to create new list vertices
          * @param reference the element's feature to construct the list for
-         * @see #VertexList(Vertex, BlueprintsPersistenceBackend, EReference)
+         * @see #VertexList(Vertex, Vertex, BlueprintsPersistenceBackend, EReference)
          */
-        private VertexList(Vertex base, BlueprintsPersistenceBackend backend, EReference reference) {
-            this(base, null, null, backend, reference);
+        private VertexList(Vertex from, Vertex base, BlueprintsPersistenceBackend backend, EReference reference) {
+            this(from, base, null, null, backend, reference);
             setSize(0);
+        }
+
+        /**
+         * Returns the {@link #from} {@link Vertex} of this list.
+         *
+         * @return the {@link #from} {@link Vertex} of this list
+         */
+        public Vertex getFrom() {
+            return from;
+        }
+
+        /**
+         * Returns the {@link #eReference} represented by this list.
+         *
+         * @return the {@link #eReference} represented by this list
+         */
+        public EReference getEReference() {
+            return eReference;
         }
 
         /**
@@ -685,6 +737,24 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
         private Vertex getNodeAtIndex(int index, int size) {
             checkElementIndex(index, size);
             Vertex node = null;
+            if(nonNull(lastIndexedVertex)) {
+                int previousIndex = lastIndexedVertex.getIndex();
+                if(Math.abs(previousIndex - index) < index && Math.abs(previousIndex - index) < Math.abs(index - (size
+                        -1))) {
+                    node = lastIndexedVertex.getVertex();
+                    if(previousIndex > index) {
+                        for(int i = previousIndex; i > index; i--) {
+                            node = getPrev(node);
+                        }
+                    } else {
+                        for(int i = previousIndex; i < index;i++) {
+                            node = getNext(node);
+                        }
+                    }
+                    lastIndexedVertex = new IndexedVertex(index, node);
+                    return node;
+                }
+            }
             if (index < size / 2) {
                 node = head;
                 for (int i = 0; i < index; i++) {
@@ -699,6 +769,7 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
             if (isNull(node)) {
                 NeoLogger.error("getNodeAtIndex({0}, {1}) returned null", index, size);
             }
+            lastIndexedVertex = new IndexedVertex(index, node);
             return node;
         }
 
@@ -823,6 +894,26 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
                 tail = newTail;
             }
             base.addEdge(TAIL, tail);
+        }
+
+        private static class IndexedVertex {
+
+            private int index;
+
+            private Vertex vertex;
+
+            private IndexedVertex(int index, Vertex vertex) {
+                this.index = index;
+                this.vertex = vertex;
+            }
+
+            public int getIndex() {
+                return index;
+            }
+
+            public Vertex getVertex() {
+                return vertex;
+            }
         }
     }
 }
