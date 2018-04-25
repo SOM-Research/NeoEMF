@@ -226,6 +226,14 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
         return internalEObject;
     }
 
+    /**
+     * The last {@link VertexList} that has been retrieved.
+     * <p>
+     * This cache speeds-up {@link #listFor(Vertex, EReference)} computation when accessing the same list multiple
+     * times (e.g. in a complete feature traversal).
+     *
+     * @see #listFor(Vertex, EReference) 
+     */
     private VertexList previousVertexList = null;
 
     /**
@@ -242,8 +250,8 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
      * @see VertexList
      */
     private VertexList listFor(Vertex from, EReference reference) {
-        if(nonNull(previousVertexList)) {
-            if(previousVertexList.getFrom().equals(from) && previousVertexList.getEReference().equals(reference)) {
+        if (nonNull(previousVertexList)) {
+            if (previousVertexList.getFrom().equals(from) && previousVertexList.getEReference().equals(reference)) {
                 return previousVertexList;
             }
         }
@@ -735,19 +743,20 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
          * @return a {@link Vertex} representing the retrieved node
          */
         private Vertex getNodeAtIndex(int index, int size) {
+            // TODO refactor this method, not easy to understand
             checkElementIndex(index, size);
             Vertex node = null;
-            if(nonNull(lastIndexedVertex)) {
+            if (nonNull(lastIndexedVertex)) {
                 int previousIndex = lastIndexedVertex.getIndex();
-                if(Math.abs(previousIndex - index) < index && Math.abs(previousIndex - index) < Math.abs(index - (size
-                        -1))) {
+                if (Math.abs(previousIndex - index) < index && Math.abs(previousIndex - index) < Math.abs(index - (size
+                        - 1))) {
                     node = lastIndexedVertex.getVertex();
-                    if(previousIndex > index) {
-                        for(int i = previousIndex; i > index; i--) {
+                    if (previousIndex > index) {
+                        for (int i = previousIndex; i > index; i--) {
                             node = getPrev(node);
                         }
                     } else {
-                        for(int i = previousIndex; i < index;i++) {
+                        for (int i = previousIndex; i < index; i++) {
                             node = getNext(node);
                         }
                     }
@@ -896,21 +905,51 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
             base.addEdge(TAIL, tail);
         }
 
+        /**
+         * A pair representing the last indexed {@link Vertex} by this list.
+         * <p>
+         * This class is used to speed-up computation of list traversal by caching the previously accessed
+         * {@link Vertex} and its index. Using this information, the list can retrieve the next element by navigating
+         * a single {@link Edge} instead of navigating from the {@link #head} or the {@link #tail} of the list.
+         *
+         * @see #getNodeAtIndex(int, int)
+         */
         private static class IndexedVertex {
 
+            /**
+             * The index of the {@link Vertex} in the list.
+             */
             private int index;
 
+            /**
+             * The last accessed {@link Vertex} in the list.
+             */
             private Vertex vertex;
 
+            /**
+             * Constructs a new {@link IndexedVertex} with the provided {@code index} and {@code vertex}.
+             *
+             * @param index  the index of the {@code vertex} in the list
+             * @param vertex the last accessed {@link Vertex} in the list
+             */
             private IndexedVertex(int index, Vertex vertex) {
                 this.index = index;
                 this.vertex = vertex;
             }
 
+            /**
+             * Returns the index of the stored {@link Vertex} in the list.
+             *
+             * @return the index of the last accessed {@link Vertex} in the list
+             */
             public int getIndex() {
                 return index;
             }
 
+            /**
+             * Returns the {@link Vertex}.
+             * @return the {@link Vertex}
+             */
             public Vertex getVertex() {
                 return vertex;
             }
