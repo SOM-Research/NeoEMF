@@ -1,5 +1,7 @@
 package fr.inria.atlanmod.neoemf.data.blueprints.store;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.collect.Iterables;
 import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.blueprints.Edge;
@@ -227,14 +229,70 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
     }
 
     /**
-     * The last {@link VertexList} that has been retrieved.
+     * A cache storing the last {@link VertexList} instances that have been retrieved.
      * <p>
      * This cache speeds-up {@link #listFor(Vertex, EReference)} computation when accessing the same list multiple
      * times (e.g. in a complete feature traversal).
      *
-     * @see #listFor(Vertex, EReference) 
+     * @see #listFor(Vertex, EReference)
      */
-    private VertexList previousVertexList = null;
+    private Cache<CacheKey, VertexList> previousVertexLists = Caffeine.newBuilder().maximumSize(10).build();
+
+    /**
+     * A pair storing a {@link Vertex} and a {@link EReference} corresponding to an key in the
+     * {@link #previousVertexLists} cache.
+     * <p>
+     * This key is used to retrieve {@link VertexList} instances that have been built and may be reused in the
+     * future, in order to speed-up query computation and improve list traversal performances.
+     *
+     * @see #previousVertexLists
+     * @see #listFor(Vertex, EReference)
+     */
+    private static class CacheKey {
+
+        /**
+         * The {@link Vertex} of the key.
+         */
+        private Vertex from;
+
+        /**
+         * The {@link EReference} of the key.
+         */
+        private EReference eReference;
+
+        /**
+         * Contructs a new {@link CacheKey} with the provided {@link Vertex} and {@link EReference}.
+         *
+         * @param from       the {@link Vertex} of the key
+         * @param eReference the {@link EReference} of the key
+         */
+        private CacheKey(Vertex from, EReference eReference) {
+            this.from = from;
+            this.eReference = eReference;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public int hashCode() {
+            return from.hashCode() + eReference.hashCode();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            } else if (nonNull(obj) && obj instanceof CacheKey) {
+                CacheKey other = (CacheKey) obj;
+                return from.equals(other.from) && eReference.equals(other.eReference);
+            }
+            return false;
+        }
+    }
 
     /**
      * Creates a {@link VertexList} representing the provided {@code reference} associated to the given element
@@ -250,12 +308,11 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
      * @see VertexList
      */
     private VertexList listFor(Vertex from, EReference reference) {
-        if (nonNull(previousVertexList)) {
-            if (previousVertexList.getFrom().equals(from) && previousVertexList.getEReference().equals(reference)) {
-                return previousVertexList;
-            }
+        CacheKey cacheKey = new CacheKey(from, reference);
+        VertexList list = previousVertexLists.getIfPresent(cacheKey);
+        if (nonNull(list)) {
+            return list;
         }
-        VertexList list = null;
         Vertex listBase = Iterables.getOnlyElement(from.getVertices(Direction.OUT, reference.getName()), null);
         if (isNull(listBase)) {
             listBase = backend.addVertex(StringId.generate());
@@ -270,7 +327,7 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
                 list = new VertexList(from, listBase, backend, reference);
             }
         }
-        previousVertexList = list;
+        previousVertexLists.put(cacheKey, list);
         return list;
     }
 
@@ -948,6 +1005,7 @@ public class DirectWriteBlueprintsStoreLongListSupport extends DirectWriteBluepr
 
             /**
              * Returns the {@link Vertex}.
+             *
              * @return the {@link Vertex}
              */
             public Vertex getVertex() {
