@@ -133,7 +133,8 @@ public class BlueprintsPersistenceBackendFactory extends AbstractPersistenceBack
         // Autocommit
         if (storeOptions.contains(BlueprintsStoreOptions.AUTOCOMMIT)) {
             if (options.containsKey(BlueprintsResourceOptions.AUTOCOMMIT_CHUNK)) {
-                int autoCommitChunk = (Integer) options.get(BlueprintsResourceOptions.AUTOCOMMIT_CHUNK);
+                int autoCommitChunk = Integer.parseInt((String) options.get(BlueprintsResourceOptions
+                        .AUTOCOMMIT_CHUNK));
                 store = new AutocommitStoreDecorator(store, autoCommitChunk);
             }
             else {
