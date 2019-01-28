@@ -125,3 +125,4 @@
 
 **/*.log
 **/java-gen
+**/*.graphdb
