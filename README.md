@@ -4,7 +4,7 @@ NeoEMF
 
 ## What is NeoEMF?
 
-NeoEMF is an [AtlanMod](http://www.emn.fr/z-info/atlanmod/index.php/Main_Page) research team project that aims at handling large EMF models in an efficient and scalable way.
+NeoEMF is joint [AtlanMod](http://www.emn.fr/z-info/atlanmod/index.php/Main_Page) and [SOM](https://som-research.uoc.edu/) research project that aims at handling large EMF models in an efficient and scalable way.
 
 It is based on our work on Neo4EMF, a scalable and graph-based backend for persisting EMF models.
 
